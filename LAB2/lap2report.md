@@ -2,7 +2,7 @@
 
 **Course:** Parallel Computing (UCS645)  
 **Lab:** Performance Measurement and Optimization with OpenMP  
-**Name:**Satya Sheel Shekhar
+**Name:** Satya Sheel Shekhar
 
 **System Configuration:** WSL2 on Windows, 12 cores available
 
