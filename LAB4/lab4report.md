@@ -1,7 +1,7 @@
 # UCS645 Lab 4 Report: MPI Exercises
 
 ## Student Information
-- **Name**: Saif Nalband
+- **Name**: Satya Sheel Shekhar
 - **Course**: UCS645 Parallel & Distributed Computing
 - **Assignment**: Lab 4 - MPI Programming Exercises
 
