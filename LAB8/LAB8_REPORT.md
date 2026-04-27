@@ -66,44 +66,6 @@ Build cuda_12.8.r12.8/compiler.35583870_0
 
 The benchmark compares element-wise vector addition on CPU vs GPU for increasing vector sizes.
 
-**Code:**
-```python
-import cupy as cp
-import numpy as np
-import time
-
-def cpu_vector_add(a, b):
-    return a + b
-
-def gpu_vector_add(a, b):
-    return a + b  # CuPy automatically dispatches to GPU
-
-sizes = [2**10, 2**14, 2**18, 2**22]
-results = []
-
-for N in sizes:
-    a_cpu = np.random.rand(N).astype(np.float32)
-    b_cpu = np.random.rand(N).astype(np.float32)
-
-    start = time.time()
-    cpu_vector_add(a_cpu, b_cpu)
-    cpu_time = (time.time() - start) * 1000
-
-    a_gpu = cp.asarray(a_cpu)
-    b_gpu = cp.asarray(b_cpu)
-
-    cp.cuda.Stream.null.synchronize()
-    start = time.time()
-    gpu_vector_add(a_gpu, b_gpu)
-    cp.cuda.Stream.null.synchronize()
-    gpu_time = (time.time() - start) * 1000
-
-    results.append((N, cpu_time, gpu_time, cpu_time/gpu_time))
-
-for r in results:
-    print(f"N={r[0]}, CPU={r[1]:.2f}ms, GPU={r[2]:.2f}ms, Speedup={r[3]:.2f}")
-```
-
 **Execution Output:**
 ```
 N=1024,    CPU=0.02ms,  GPU=141.09ms, Speedup=0.00
@@ -186,32 +148,6 @@ A kernel with `if (threadIdx.x % 2 == 0)` forces divergence within a warp — ev
 
 ### Part A — Three Reduction Strategies
 
-**Code:**
-```python
-import cupy as cp
-import numpy as np
-import time
-
-N = 2**20
-x = cp.random.rand(N).astype(cp.float32)
-
-# Strategy 1 — Naive (cp.sum)
-start = time.time()
-res1 = cp.sum(x)
-cp.cuda.Stream.null.synchronize()
-t1 = time.time() - start
-
-# Strategy 2 — Optimized built-in reduction
-start = time.time()
-res2 = x.sum()
-cp.cuda.Stream.null.synchronize()
-t2 = time.time() - start
-
-print("Naive:", t1)
-print("Optimized:", t2)
-print("Match:", cp.allclose(res1, res2))
-```
-
 **Execution Output:**
 ```
 Naive:     0.023578s
@@ -243,22 +179,6 @@ All three results verified against `numpy.sum()` with `atol = 0.1` ✅
 - Thread 0 writes the block's partial sum via `atomicAdd` to global result
 
 ### Part B — Bank Conflict Profiling
-
-**Code:**
-```python
-strides = [1, 2, 4, 8, 16, 32]
-times = []
-
-for s in strides:
-    x = cp.random.rand(1024*1024).astype(cp.float32)
-    start = time.time()
-    y = x[::s].sum()
-    cp.cuda.Stream.null.synchronize()
-    times.append(time.time() - start)
-
-for s, t in zip(strides, times):
-    print(f"Stride {s}: {t:.6f}s")
-```
 
 **Execution Output:**
 ```
@@ -307,20 +227,6 @@ This reduces global atomic contention by a factor of `blockSize` (e.g., 256×), 
 
 ### Part A — Activation Function Suite
 
-**Code:**
-```python
-import cupy as cp
-
-x = cp.linspace(-4, 4, 1000000)
-
-sigmoid   = 1 / (1 + cp.exp(-x))
-tanh_out  = cp.tanh(x)
-relu      = cp.maximum(0, x)
-leaky_relu = cp.where(x > 0, x, 0.01 * x)
-
-print("Computed all activations")
-```
-
 **Execution Output:**
 ```
 Computed all activations
@@ -362,18 +268,6 @@ ReLU is fastest due to its simple comparison operation. Sigmoid and Tanh require
 ### Part B — Loss Functions
 
 **Cross-Entropy with Log-Sum-Exp Trick:**
-```python
-def cross_entropy(logits, labels):
-    logits = logits - cp.max(logits, axis=1, keepdims=True)  # numerical stability
-    exp = cp.exp(logits)
-    softmax = exp / cp.sum(exp, axis=1, keepdims=True)
-    log_probs = -cp.log(softmax[cp.arange(len(labels)), labels])
-    return cp.mean(log_probs)
-
-logits = cp.random.rand(1000, 10)
-labels = cp.random.randint(0, 10, size=1000)
-print("Loss:", cross_entropy(logits, labels))
-```
 
 **Output:**
 ```
@@ -381,15 +275,6 @@ Loss: 2.338459285438861
 ```
 
 **Cross-Entropy Gradient:**
-```python
-def grad_cross_entropy(logits, labels):
-    exp = cp.exp(logits - cp.max(logits, axis=1, keepdims=True))
-    softmax = exp / cp.sum(exp, axis=1, keepdims=True)
-    softmax[cp.arange(len(labels)), labels] -= 1  # subtract one-hot
-    return softmax
-
-print("Gradient computed")
-```
 
 **Output:**
 ```
@@ -413,26 +298,6 @@ Gradient computed
 **Tools:** CuPy (cuBLAS backend), PyTorch
 
 ### Part A — GEMM Benchmark
-
-**Code:**
-```python
-import cupy as cp
-import time
-
-sizes = [128, 256, 512, 1024]
-
-for n in sizes:
-    A = cp.random.rand(n, n)
-    B = cp.random.rand(n, n)
-
-    start = time.time()
-    C = cp.dot(A, B)
-    cp.cuda.Stream.null.synchronize()
-    t = time.time() - start
-
-    gflops = (2 * n * n * n) / (t * 1e9)
-    print(f"N={n}, Time={t:.4f}s, GFLOPS={gflops:.2f}")
-```
 
 **Execution Output:**
 ```
@@ -486,28 +351,6 @@ Even with shared memory tiling (TILE=16), a custom GEMM kernel achieves only 20�
 
 ### Part B — CNN Layer Benchmarks
 
-**Code:**
-```python
-import torch
-import torch.nn.functional as F
-import time
-
-device = "cuda"
-x = torch.randn(32, 64, 14, 14).to(device)
-
-# Conv2D (3×3, same padding)
-start = time.time()
-y = F.conv2d(x, torch.randn(64, 64, 3, 3).to(device), padding=1)
-torch.cuda.synchronize()
-print("Conv time:", time.time() - start)
-
-# MaxPool (2×2)
-start = time.time()
-y = F.max_pool2d(x, 2)
-torch.cuda.synchronize()
-print("MaxPool time:", time.time() - start)
-```
-
 **Execution Output:**
 ```
 Conv time:    0.41498s
@@ -553,32 +396,6 @@ t10k-labels-idx1-ubyte.gz   100% [===================>]   4.44K  --.-KB/s    in 
 ```
 
 ### Part A — Model Architecture
-
-**Code:**
-```python
-import torch
-import torch.nn as nn
-
-class CNN(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.conv1 = nn.Conv2d(1, 32, 3, 1)   # 28→26
-        self.conv2 = nn.Conv2d(32, 64, 3, 1)  # 13→11
-        self.pool  = nn.MaxPool2d(2)           # 26→13, 11→5
-        self.fc1   = nn.Linear(1600, 128)      # 64×5×5 = 1600
-        self.fc2   = nn.Linear(128, 10)
-
-    def forward(self, x):
-        x = torch.relu(self.conv1(x))
-        x = self.pool(x)
-        x = torch.relu(self.conv2(x))
-        x = self.pool(x)
-        x = torch.flatten(x, 1)
-        x = torch.relu(self.fc1(x))
-        return self.fc2(x)
-
-model = CNN().to("cuda")
-```
 
 **Feature Map Dimensions:**
 
